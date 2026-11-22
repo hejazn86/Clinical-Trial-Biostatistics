@@ -1,0 +1,176 @@
+---
+title: "03_Primary_analysis"
+author: "Hejaz Navaser"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Libraries
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(gt)
+
+```
+
+
+##Load the data
+
+```{r}
+
+trial_data <- read.csv(
+  "C:/Users/39351/github/clinical-Trial-Biostatistics/data/simulated/clinical_trial_data.csv",
+  stringsAsFactors = FALSE
+)
+
+```
+
+
+## UNADJUSTED TREATMENT COMPARISON: Mean Difference
+
+```{r}
+
+
+# mean LDL reduction in each group
+mean_reduction <- aggregate(
+  ldl_reduction ~ treatment,
+  data = trial_data,
+  FUN = mean
+)
+
+print(mean_reduction)
+
+
+# the difference between group means
+control_mean <- mean(
+  trial_data$ldl_reduction[
+    trial_data$treatment == "Control"
+  ]
+)
+
+treatment_mean <- mean(
+  trial_data$ldl_reduction[
+    trial_data$treatment == "New treatment"
+  ]
+)
+
+mean_difference <- treatment_mean - control_mean
+
+
+print(mean_difference)
+
+```
+
+## UNADJUSTED TREATMENT COMPARISON:Welch's T-test
+
+```{r}
+
+trial_data$treatment <- factor(
+  trial_data$treatment,
+  levels = c("Control", "New treatment")
+)
+
+# Welch's t-test: new treatment minus control
+unadjusted_test <- t.test(
+  x = trial_data$ldl_reduction[
+    trial_data$treatment == "New treatment"
+  ],
+  y = trial_data$ldl_reduction[
+    trial_data$treatment == "Control"
+  ],
+  var.equal = FALSE
+)
+
+
+# unadjusted results
+unadjusted_results <- data.frame(
+  Analysis = "Unadjusted: mean LDL reduction",
+  Estimate = unadjusted_test$estimate[1] -
+             unadjusted_test$estimate[2],
+  Lower_CI = unadjusted_test$conf.int[1],
+  Upper_CI = unadjusted_test$conf.int[2],
+  P_value = unadjusted_test$p.value
+)
+
+```
+
+
+## PRIMARY ANALYSIS: ANCOVA
+
+
+```{r}
+
+# the reference group = Control
+trial_data$treatment <- relevel(
+  trial_data$treatment,
+  ref = "Control"
+)
+
+
+# Fit the adjusted linear regression model
+ancova_model <- lm(
+  week12_ldl ~ treatment + baseline_ldl,
+  data = trial_data
+)
+
+
+#summary(ancova_model)
+
+#the 95% confidence intervals
+confint(ancova_model, level = 0.95)
+
+#  the treatment effect
+treatment_effect <- coef(ancova_model)[
+  "treatmentNew treatment"
+]
+
+# standard error
+treatment_se <- summary(ancova_model)$coefficients[
+  "treatmentNew treatment", "Std. Error"
+]
+
+# p-value
+treatment_p <- summary(ancova_model)$coefficients[
+  "treatmentNew treatment", "Pr(>|t|)"
+]
+
+# the key results
+cat("Adjusted treatment effect:", treatment_effect, "\n")
+cat("Standard error:", treatment_se, "\n")
+cat("P-value:", treatment_p, "\n")
+
+# treatment effect confidence interval
+confint(
+  ancova_model,
+  "treatmentNew treatment",
+  level = 0.95
+)
+
+
+
+# Extract adjusted ANCOVA results
+ancova_ci <- confint(
+  ancova_model,
+  "treatmentNew treatment",
+  level = 0.95
+)
+
+ancova_results <- data.frame(
+  Analysis = "Adjusted: week-12 LDL (ANCOVA)",
+  Estimate = coef(ancova_model)["treatmentNew treatment"],
+  Lower_CI = ancova_ci[1],
+  Upper_CI = ancova_ci[2],
+  P_value = summary(ancova_model)$coefficients[
+    "treatmentNew treatment", "Pr(>|t|)"
+  ]
+)
+
+```
+

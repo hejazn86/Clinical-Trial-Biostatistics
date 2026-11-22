@@ -1,0 +1,119 @@
+---
+title: "Biostatistics project"
+author: "Hejaz Navaser"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+# Reproducibility
+set.seed(2026)
+
+
+# Number of participants
+n <- 400
+
+
+# Random allocation: 200 participants per group (treatment and Control)
+treatment <- sample(
+  rep(c("Control", "New treatment"), each = n / 2)
+)
+
+
+# Generate demographic characteristics
+age <- round(rnorm(n, mean = 60, sd = 10))
+
+sex <- sample(
+  c("Female", "Male"),
+  size = n,
+  replace = TRUE
+)
+
+
+# Generate diabetes status:
+# 0 = No diabetes, 1 = Diabetes
+diabetes <- rbinom(n, size = 1, prob = 0.35)
+
+
+# Generate baseline LDL cholesterol (mg/dL)
+baseline_ldl <- rnorm(n, mean = 150, sd = 25)
+
+
+# Simulate the treatment effect:
+# Control: expected LDL reduction of 25 mg/dL
+# New treatment: expected LDL reduction of 35 mg/dL
+treatment_effect <- ifelse(
+  treatment == "New treatment", 10, 0
+)
+
+
+# Generate LDL reduction, including individual variability
+ldl_reduction <- 25 +
+  treatment_effect +
+  0.15 * (baseline_ldl - 150) -
+  0.10 * (age - 60) +
+  rnorm(n, mean = 0, sd = 15)
+
+
+# Calculate LDL at week 12
+week12_ldl <- baseline_ldl - ldl_reduction
+
+
+# Simulate adverse events
+adverse_event_probability <- ifelse(
+  treatment == "New treatment", 0.12, 0.10
+)
+
+adverse_event <- rbinom(
+  n, size = 1,
+  prob = adverse_event_probability
+)
+
+
+# Combine all variables into the dataset
+trial_data <- data.frame(
+  participant_id = 1:n,
+  treatment = factor(treatment),
+  age,
+  sex = factor(sex),
+  diabetes,
+  baseline_ldl,
+  week12_ldl,
+  ldl_reduction,
+  adverse_event
+)
+
+```
+
+
+
+```{r}
+# Inspect the dataset
+head(trial_data)
+str(trial_data)
+summary(trial_data)
+
+
+# Check for missing values
+colSums(is.na(trial_data))
+
+
+# Check that participants are distributed equally
+table(trial_data$treatment)
+
+# Save the dataset
+write.csv(
+  trial_data,
+  "clinical_trial_data.csv",
+  row.names = FALSE
+)
+
+
+```
