@@ -89,7 +89,7 @@ unadjusted_test <- t.test(
 )
 
 
-# unadjusted results
+# unadjusted analysis results
 unadjusted_results <- data.frame(
   Analysis = "Unadjusted: mean LDL reduction",
   Estimate = unadjusted_test$estimate[1] -
@@ -99,10 +99,13 @@ unadjusted_results <- data.frame(
   P_value = unadjusted_test$p.value
 )
 
+
+
 ```
 
 
-## PRIMARY ANALYSIS: ANCOVA
+
+## PRIMARY ANALYSIS:  ADJUSTED REGRESSION MODEL (ANCOVA)
 
 
 ```{r}
@@ -126,7 +129,7 @@ ancova_model <- lm(
 #the 95% confidence intervals
 confint(ancova_model, level = 0.95)
 
-#  the treatment effect
+# the treatment effect
 treatment_effect <- coef(ancova_model)[
   "treatmentNew treatment"
 ]
@@ -155,7 +158,7 @@ confint(
 
 
 
-# Extract adjusted ANCOVA results
+# Adjusted ANCOVA results
 ancova_ci <- confint(
   ancova_model,
   "treatmentNew treatment",
@@ -173,4 +176,157 @@ ancova_results <- data.frame(
 )
 
 ```
+
+
+## Visualise the ANCOVA-adjusted group means
+
+```{r}
+
+# the overall mean baseline LDL
+mean_baseline <- mean(
+  trial_data$baseline_ldl,
+  na.rm = TRUE
+)
+
+# Creating prediction dataset
+prediction_data <- data.frame(
+  treatment = factor(
+    c("Control", "New treatment"),
+    levels = c("Control", "New treatment")
+  ),
+  baseline_ldl = mean_baseline
+)
+
+# predicted means and confidence intervals
+predictions <- as.data.frame(
+  predict(
+    ancova_model,
+    newdata = prediction_data,
+    interval = "confidence",
+    level = 0.95
+  )
+)
+
+# Combining predictions with treatment groups
+adjusted_means <- cbind(
+  prediction_data,
+  predictions
+)
+
+
+
+
+
+# Plot
+ggplot(
+  adjusted_means,
+  aes(x = treatment, y = fit)
+) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(ymin = lwr, ymax = upr),
+    width = 0.10
+  ) +
+  labs(
+    title = "Adjusted mean LDL at week 12",
+    subtitle = paste(
+      "Predictions adjusted to baseline LDL =",
+      round(mean_baseline, 1), "mg/dL"
+    ),
+    x = "Treatment group",
+    y = "Predicted week-12 LDL (mg/dL)"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+## Display the Table of Results for both Analysis
+
+```{r}
+
+# Combine both analyses
+results_table <- bind_rows(
+  unadjusted_results,
+  ancova_results
+)
+
+
+
+results_table %>%
+  gt() %>%
+  tab_header(
+    title = "Treatment Effect on LDL Cholesterol",
+    subtitle = "Randomised clinical trial — 12-week follow-up"
+  ) %>%
+  cols_label(
+    Analysis = "Analysis",
+    Estimate = "Mean difference (mg/dL)",
+    Lower_CI = "95% CI lower",
+    Upper_CI = "95% CI upper",
+    P_value = "P-value"
+  ) %>%
+  fmt_number(
+    columns = c(Estimate, Lower_CI, Upper_CI),
+    decimals = 2
+  ) %>%
+  fmt_number(
+    columns = P_value,
+    decimals = 3
+  ) %>%
+  tab_source_note(
+    source_note = paste(
+      "Negative differences favour the new treatment.",
+      "Unadjusted comparison uses Welch's t-test.",
+      "The ANCOVA model adjusts for baseline LDL."
+    )
+  )
+
+```
+
+
+
+## Visualise the treatment effects
+
+It displays the **estimated treatment difference** and its 95% confidence interval.
+
+
+```{r}
+
+ggplot(results_table, aes(y = Analysis, x = Estimate)) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = "dashed",
+    colour = "darkred"
+  ) +
+
+  geom_segment(
+    aes(
+      x = Lower_CI,
+      xend = Upper_CI,
+      yend = Analysis
+    ),
+    linewidth = 1
+  ) +
+
+  geom_point(size = 3) +
+
+  labs(
+    title = "Estimated treatment effects on LDL cholesterol",
+    subtitle = "Mean difference and 95% confidence intervals",
+    x = "Mean difference (mg/dL): new treatment minus control",
+    y = NULL,
+    caption = paste(
+      "Negative values favour the new treatment.",
+      "The two estimates concern different outcome definitions."
+    )
+  ) +
+
+  theme_minimal(base_size = 12)
+  
+```
+
+
 
